@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">RunningTracker</string>
+    <string name="kill">Kill Service</string>
+</resources>
