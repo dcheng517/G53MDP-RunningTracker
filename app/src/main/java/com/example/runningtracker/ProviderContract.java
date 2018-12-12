@@ -2,6 +2,12 @@ package com.example.runningtracker;
 
 import android.net.Uri;
 
+/*
+*   Contract class for the content provider
+*   Used to access URIs and columns
+*
+*/
+
 public final class ProviderContract {
 
     public final static String AUTHORITY = "com.example.runningtracker.provider.MyContentProvider";
@@ -14,6 +20,5 @@ public final class ProviderContract {
     public static final String RT_DIST = "rt_dist";
     public static final String RT_TIME = "rt_time";
     public static final String DIST_TOTAL = "SUM(rt_dist)";
-//    public static final String TIME = "(julianday(rt_end)-julianday(rt_start)*24 AS time)";
-//    public static final String SPEED = "(rt_dist/(julianday(rt_end)-julianday(rt_start)*24)) AS top_speed";
+    public static final String SPEED = "(rt_dist/rt_time)";
 }

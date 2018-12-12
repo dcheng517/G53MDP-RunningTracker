@@ -24,24 +24,27 @@
         <service
             android:name=".RTService"
             android:enabled="true"
-            android:exported="true">
-        </service>
+            android:exported="true"
+            android:stopWithTask="false"/>
 
         <provider
             android:name=".provider.MyContentProvider"
             android:authorities="com.example.runningtracker.provider.MyContentProvider"
             android:enabled="true"
-            android:exported="true"></provider>
-
-        <receiver
-            android:name=".stopReceiver"
-            android:enabled="true"
-            android:process=":remote"
-            ></receiver>
+            android:exported="true" />
 
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyCrvSKpHtj7rIHRYqLnJbprS2QE24zpdck"/>
+            android:value="AIzaSyCrvSKpHtj7rIHRYqLnJbprS2QE24zpdck" />
+
+        <activity
+            android:name=".StatsActivity"
+            android:label="@string/title_activity_stats"
+            android:theme="@style/AppTheme.NoActionBar" />
+        <activity
+            android:name=".AchieveActivity"
+            android:label="@string/title_activity_achieve"
+            android:theme="@style/AppTheme.NoActionBar" />
     </application>
 
 </manifest>

@@ -1,5 +1,6 @@
 package com.example.runningtracker;
 
+import android.annotation.SuppressLint;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
@@ -19,12 +20,16 @@ import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Locale;
 
+/*
+*   Main service file. Contains LocationManager to track movement.
+*   Sends the data to Main Activity through a broadcast receiver
+*   Contains a notification that can't be dismissed when service is running.
+*/
 
 public class RTService extends Service {
 
     private static final String log = "G53MDP";
 
-    RunningTracker rt;
     Intent noti;
     NotificationManager notiMan;
     NotificationCompat.Builder notiBuild;
@@ -32,8 +37,8 @@ public class RTService extends Service {
     private rtBinder binder = new rtBinder();
 
     private static final String TAG = "G53MDP";
-    private boolean isBound = true;
 
+//    format date to SQLite format
     SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
     String recDate;
 
@@ -45,11 +50,6 @@ public class RTService extends Service {
     public RTService() {}
 
     public class rtBinder extends Binder {
-        RTService getService()
-        {
-            return RTService.this;
-        }
-
         public void updateNoti(int status)
         {
             RTService.this.updateNoti(status);
@@ -61,14 +61,14 @@ public class RTService extends Service {
         super.onCreate();
         Log.d(log, "RTService onCreate.");
 
-//        notiBuilder();
+        notiBuilder();
     }
 
+    @SuppressLint("MissingPermission")
     @Override
     public int onStartCommand(Intent intent, int flags, int startId)
     {
-        notiBuilder();
-
+//        get the current date
         recDate = sdf.format(Calendar.getInstance().getTime());
         Log.d(log, "recDate = " + recDate);
 
@@ -87,7 +87,9 @@ public class RTService extends Service {
             Log.d(log, e.toString());
         }
 
+//      initialize endLocation
         endLocation = startLocation;
+        sendBroadcast();
 
         return START_STICKY;
     }
@@ -96,9 +98,8 @@ public class RTService extends Service {
         @Override
         public void onLocationChanged(Location location) {
             endLocation = location;
+            Log.d(log, "onLocationChanged.");
             sendBroadcast();
-            Log.d(log, "startLocation: " + startLocation.getLatitude() + ", " + startLocation.getLongitude());
-            Log.d(log, "endLocation: " + endLocation.getLatitude() + ", " + endLocation.getLongitude());
         }
 
         @Override
@@ -117,6 +118,7 @@ public class RTService extends Service {
         }
     };
 
+//    broadcast the variables to the main activity
     public void sendBroadcast()
     {
         Intent broadcast = new Intent("RTbroadcast");
@@ -133,13 +135,9 @@ public class RTService extends Service {
         noti = new Intent(this, MainActivity.class);
         notiMan = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
 
-//        Notification tap to open activity
+//        Notification tap to open main activity
         Intent mainActivity = new Intent(this, MainActivity.class);
         PendingIntent getActivity = PendingIntent.getActivity(this, 0, mainActivity, 0);
-
-//        Intent to kill service
-//        Intent closeIntent = new Intent(this, stopReceiver.class);
-//        PendingIntent closePendingIntent = PendingIntent.getBroadcast(this, 0, closeIntent, PendingIntent.FLAG_CANCEL_CURRENT);
 
         notiBuild = new NotificationCompat.Builder(this)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -149,11 +147,8 @@ public class RTService extends Service {
                 .setContentText("Current Status: Idle")
                 .setContentIntent(getActivity);
 
-//            add kill service action button on notification if MainActivity is destroyed
-//        if(!isBound)
-//            notiBuild.addAction(R.drawable.close, getString(R.string.kill), closePendingIntent);
-
         notiMan.notify(1, notiBuild.build());
+        startForeground(1, notiBuild.build()); // notification can't be dismissed
     }
 
 //     update current status of media player
@@ -166,19 +161,21 @@ public class RTService extends Service {
                 text = text + "Tracking";
                 break;
             case 2:
-                text = text + "Idle";
+                text = text + "Paused";
                 break;
+            case 3:
+                text = text + "Idle";
         }
         Log.d(log, "updateNoti: " + text);
         notiBuild.setContentText(text);
         notiMan.notify(1, notiBuild.build());
+        startForeground(1, notiBuild.build()); // notification can't be dismissed
     }
 
     @Override
     public IBinder onBind(Intent intent) {
         Log.i(TAG, "Service onBind");
-        isBound = true;
-//        notiBuilder();
+        notiBuilder();
         return binder;
     }
 
@@ -186,9 +183,6 @@ public class RTService extends Service {
     public boolean onUnbind(Intent intent)
     {
         Log.i(TAG, "onUnbind");
-        super.onDestroy();
-        isBound = false;
-//        notiBuilder();
         return true;
     }
 
@@ -197,13 +191,14 @@ public class RTService extends Service {
     {
         Log.i(TAG, "onRebind");
         super.onRebind(intent);
-        isBound = true;
-//        notiBuilder();
+        notiBuilder();
     }
 
     @Override
     public void onDestroy()
     {
+        notiMan.cancel(1); // remove notification when service onDestroy
+        super.onDestroy();
         Log.i(TAG, "Service onDestroy");
     }
 }

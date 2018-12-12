@@ -1,4 +1,11 @@
 <resources>
-    <string name="app_name">RunningTracker</string>
+    <string name="app_name" translatable="false">RunningTracker</string>
     <string name="kill">Kill Service</string>
+    <string name="title_activity_stats">StatsActivity</string>
+    <string name="day">Today</string>
+    <string name="stats">Stats</string>
+    <string name="records">Records</string>
+    <string name="action_settings">Settings</string>
+    <string name="section_format">Hello World from section: %1$d</string>
+    <string name="title_activity_achieve">AchieveActivity</string>
 </resources>

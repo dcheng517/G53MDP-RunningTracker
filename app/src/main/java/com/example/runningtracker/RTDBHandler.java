@@ -8,6 +8,14 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.util.Log;
 
+import java.util.ArrayList;
+import java.util.List;
+
+/*
+*   Database handler for the app. Insert/Query/Delete methods in here.
+*   Uses content resolver to communicate with the content provider.
+*/
+
 public class RTDBHandler extends SQLiteOpenHelper {
 
     private static final String log = "G53MDP";
@@ -17,17 +25,10 @@ public class RTDBHandler extends SQLiteOpenHelper {
     private static final int DB_VER = 1;
     private static final String DB_NAME = "runningtracker.db";
 
-//    public static final String TABLE = "runningtracker";
-//    public static final String COL_ID = "rt_id";
-//    public static final String COL_DATE = "rt_date";
-//    public static final String COL_DIST = "rt_dist";
-
     private static final String sql_create =
             "CREATE TABLE if not exists " + ProviderContract.RT_TABLE + " (" +
                     ProviderContract.RT_ID + " INTEGER PRIMARY KEY, " +
                     ProviderContract.RT_DATE + " TEXT, " +
-//                    ProviderContract.RT_START + " TEXT, " +
-//                    ProviderContract.RT_END + " TEXT, " +
                     ProviderContract.RT_TIME + " REAL, " +
                     ProviderContract.RT_DIST + " REAL);";
 
@@ -50,7 +51,7 @@ public class RTDBHandler extends SQLiteOpenHelper {
         onCreate(db);
     }
 
-//        find row by id
+//        query row by id
     public RunningTracker queryRec (int id)
     {
         String[] projection =
@@ -84,9 +85,11 @@ public class RTDBHandler extends SQLiteOpenHelper {
         return rt;
     }
 
-//        find row by day
-    public RunningTracker queryRec (String date)
+//        returns a list of all logs on that day
+    public List<RunningTracker> allLogs(String selDate)
     {
+        List<RunningTracker> logList = new ArrayList<>();
+
         String[] projection =
                 {
                         ProviderContract.RT_ID,
@@ -94,31 +97,36 @@ public class RTDBHandler extends SQLiteOpenHelper {
                         ProviderContract.RT_DIST,
                         ProviderContract.RT_TIME
                 };
-        String selection = "date(rt_date) = date(" + date + ")" ;
+        String selection = "DATE(rt_date) = DATE('" + selDate + "')";
 
-        Cursor cursor = myCR.query(ProviderContract.CONTENT_URI, projection,
-                selection, null, null);
+        int id;
+        String date;
+        float dist;
+        float duration;
 
-        RunningTracker rt = new RunningTracker();
+        Cursor cursor = myCR.query(ProviderContract.CONTENT_URI, projection, selection,
+                null, null);
 
         if(cursor != null)
         {
             if(cursor.moveToFirst())
             {
-                cursor.moveToFirst();
-                rt.setRt_id(Integer.parseInt(cursor.getString(0)));
-                rt.setRt_date(cursor.getString(1));
-                rt.setRt_dist(cursor.getFloat(2));
-                rt.setRt_time(cursor.getFloat(3));
-                cursor.close();
-            }else
-                rt = null;
+                do {
+                    id = cursor.getInt(0);
+                    date = cursor.getString(1);
+                    dist = cursor.getFloat(2);
+                    duration = cursor.getFloat(3);
+
+                    RunningTracker res = new RunningTracker(id, date, dist, duration);
+                    logList.add(res);
+                }while (cursor.moveToNext());
+            }
         }
 
-        return rt;
+        return logList;
     }
 
-//    total distance in a week/month/year
+//    total distance in a day/week/month/year
     public float distTotal(String date, int reqID)
     {
         String[] projection = {ProviderContract.DIST_TOTAL}; // SUM(rt_dist)
@@ -129,14 +137,14 @@ public class RTDBHandler extends SQLiteOpenHelper {
         {
 //            total dist of current day
             case 1:
-                selection = "DATE(rt_date) = DATE(" + date + ")";
+                selection = "DATE(rt_date) = DATE('" + date + "')";
 
                 break;
 //            total dist of current week
             case 2:
                 selection = "DATE(rt_date) BETWEEN DATE('" + date
-                        + "', 'weekday 0', '-6 days'" + date
-                        + "', 'weekday 0'";
+                        + "', 'weekday 0', '-6 days') AND DATE('" + date
+                        + "', 'weekday 0')";
 
                 break;
 //            total dist of current month
@@ -170,10 +178,83 @@ public class RTDBHandler extends SQLiteOpenHelper {
                 }else
                     ret = 0;
             }
-
         }
 
         return ret;
+    }
+
+//    query record with top speed
+    public RunningTracker topSpeed()
+    {
+        String[] projection =
+                {
+                    ProviderContract.RT_ID,
+                    ProviderContract.RT_DATE,
+                    ProviderContract.RT_DIST,
+                    ProviderContract.RT_TIME
+                };
+
+//      selection = (rt_dist/rt_time) = (SELECT MAX(rt_dist/rt_time) FROM runningtracker);
+        String selection =
+                ProviderContract.SPEED + " = " + // (rt_dist/rt_time)
+                        "(SELECT MAX(" + ProviderContract.SPEED + ") FROM " //
+                        + ProviderContract.RT_TABLE +")";
+
+        Cursor cursor = myCR.query(ProviderContract.CONTENT_URI, projection,
+                selection, null, null);
+
+        RunningTracker rt = new RunningTracker();
+
+        if(cursor != null)
+        {
+            if(cursor.moveToFirst())
+            {
+                cursor.moveToFirst();
+                rt.setRt_id(Integer.parseInt(cursor.getString(0)));
+                rt.setRt_date(cursor.getString(1));
+                rt.setRt_dist(cursor.getFloat(2));
+                rt.setRt_time(cursor.getFloat(3));
+                cursor.close();
+            }else
+                rt = null;
+        }
+
+        return rt;
+    }
+
+//    query record with max distance
+    public RunningTracker maxDist()
+    {
+        String[] projection =
+                {
+                        ProviderContract.RT_ID,
+                        ProviderContract.RT_DATE,
+                        ProviderContract.RT_DIST,
+                        ProviderContract.RT_TIME
+                };
+        String selection = "rt_dist = (SELECT MAX(" + ProviderContract.RT_DIST
+                + ") FROM " + ProviderContract.RT_TABLE +")";
+
+        Cursor cursor = myCR.query(ProviderContract.CONTENT_URI, projection,
+                selection, null, null);
+
+        RunningTracker rt = new RunningTracker();
+
+        if(cursor != null)
+        {
+            if(cursor.moveToFirst())
+            {
+                cursor.moveToFirst();
+                rt.setRt_id(Integer.parseInt(cursor.getString(0)));
+                rt.setRt_date(cursor.getString(1));
+                rt.setRt_dist(cursor.getFloat(2));
+                rt.setRt_time(cursor.getFloat(3));
+                cursor.close();
+            }else
+                rt = null;
+        }
+
+        return rt;
     }
 
 //        add new row to db
@@ -185,18 +266,6 @@ public class RTDBHandler extends SQLiteOpenHelper {
         values.put(ProviderContract.RT_TIME, rt.getRt_time());
 
         myCR.insert(ProviderContract.CONTENT_URI, values);
-    }
-
-//        update existing row
-    public void updateRT(RunningTracker rt, int id)
-    {
-        ContentValues values = new ContentValues();
-        values.put(ProviderContract.RT_DATE, rt.getRt_date());
-        values.put(ProviderContract.RT_DIST, rt.getRt_dist());
-        values.put(ProviderContract.RT_TIME, rt.getRt_time());
-
-        myCR.update(ProviderContract.CONTENT_URI, values,
-                ProviderContract.RT_ID + " = " + Integer.toString(id), null);
     }
 
 //        delete row from db by id
@@ -214,18 +283,4 @@ public class RTDBHandler extends SQLiteOpenHelper {
         return result;
     }
 
-//            delete row from db by date
-    public boolean deleteRT(String date)
-    {
-        boolean result = false;
-        String selection = "DATE(rt_date) = DATE(" + date + ")";
-
-        int rowsDeleted = myCR.delete(ProviderContract.CONTENT_URI,
-                selection, null);
-
-        if(rowsDeleted>0)
-            result = true;
-
-        return result;
-    }
 }
