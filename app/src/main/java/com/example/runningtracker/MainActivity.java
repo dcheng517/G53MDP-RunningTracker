@@ -67,7 +67,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private GoogleMap gmap;
     private LatLng startLL;
     private LatLng endLL;
-    private LatLng tempLL;
 
     private TextView stopwatch;
     private TextView tvDist;
@@ -76,19 +75,14 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private Button pause;
     private Button save;
 
+//    db handler to get topSpeed and maxDist
+    private RTDBHandler rtDB;
 
+//    runnable variables
     Handler handler;
 
     long MillisecondTime, StartTime, TimeBuff, UpdateTime = 0L ;
     int Seconds, Minutes, MilliSeconds ;
-
-    String recDate;
-
-    Location startLocation;
-    Location endLocation;
-
-    float distance;
-    float duration = 0;
 
     float dist = 0;
     float distBuff = 0;
@@ -96,10 +90,16 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     float speed = 0f;
 
-    private boolean isBound;
+    String recDate; // curr date
+
+    Location startLocation;
+    Location endLocation;
+
+    float distance;
+    float duration = 0;
+
     private boolean tracking = false;
     private boolean isPaused = false;
-    private boolean isStopped = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -121,9 +121,13 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
 
         rtService = new Intent(this, RTService.class);
-        handler = new Handler();
-        polyList = new ArrayList<LatLng>();
-        oldPoly = new ArrayList<Polyline>();
+        rtDB = new RTDBHandler(this, null, null, 1); // db handler
+
+        handler = new Handler(); // runnable handler
+
+//        Polylines list
+        polyList = new ArrayList<LatLng>(); // new tracks to be drawn
+        oldPoly = new ArrayList<Polyline>(); // list of drawn tracks on map
 
         //        Get data from broadcast receiver
         LocalBroadcastManager.getInstance(this).registerReceiver(new BroadcastReceiver() {
@@ -134,8 +138,13 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 if(startLocation==null) startLocation = intent.getParcelableExtra("startLocation");
                 endLocation = intent.getParcelableExtra("endLocation");
 
-                endLL = new LatLng(endLocation.getLatitude(), endLocation.getLongitude());
-                moveCamera(endLL, 18.5f);
+                try{
+                    endLL = new LatLng(endLocation.getLatitude(), endLocation.getLongitude());
+                    moveCamera(endLL, 18.5f);
+                }catch (NullPointerException e)
+                {
+                    Log.d(log, e.toString());
+                }
             }
         }, new IntentFilter("RTbroadcast"));
 
@@ -162,13 +171,11 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             @Override
             public void onServiceConnected(ComponentName name, IBinder service) {
                 binder = (RTService.rtBinder) service;
-                isBound = true;
                 Log.d(log, "Service Connected.");
             }
 
             @Override
             public void onServiceDisconnected(ComponentName name) {
-                isBound = false;
                 Log.d(log, "Service Disconnected");
             }
         };
@@ -182,6 +189,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         start = (Button) findViewById(R.id.btnStart);
         pause = (Button) findViewById(R.id.btnPause);
         save = (Button) findViewById(R.id.btnSave);
+
+
     }
 
     @SuppressLint("MissingPermission")
@@ -315,7 +324,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         {
             tracking = false;
             isPaused = true;
-            isStopped = false;
 
 //            Pause stopwatch
             TimeBuff = TimeBuff + MillisecondTime;
@@ -335,7 +343,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             onClickStart(view); // resume service``
             tracking = true;
             isPaused = false;
-            isStopped = false;
 
 //            change button text to PAUSE
             pause.setText("PAUSE");
@@ -348,7 +355,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     {
         tracking = false;
         isPaused = false;
-        isStopped = true;
 
 //        stop stopwatch and distance and speed runnable
         handler.removeCallbacks(runStopwatch);
@@ -365,6 +371,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         distance = distTotal;
         duration = UpdateTime;
 
+        compRec(distance, duration);
 
 //            adding new row into table
         RunningTracker res = new RunningTracker(recDate, duration, distance);
@@ -431,6 +438,36 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
         polyList.clear();
         oldPoly.clear();
+    }
+
+//    compare new records with current records
+    public void compRec(float newDist, float newDur)
+    {
+        rtDB = new RTDBHandler(this, null, null, 1);
+//        current distance record
+        RunningTracker currDist = rtDB.maxDist();
+        float maxDist = currDist.getRt_dist();
+
+//        current speed record
+        RunningTracker currSpeed = rtDB.topSpeed();
+        float dist = currSpeed.getRt_dist();
+        float time = currSpeed.getRt_time();
+        float topSpeed = (dist/time) * 3600000;
+        float newSpeed = (newDist/newDur) * 3600000;
+
+        if (newDist > maxDist && newSpeed > topSpeed) // if both records broken
+        {
+            Toast.makeText(MainActivity.this,
+                    "WOW! You've just set a new record for furthest distance travelled with "
+                    + String.format("%.2f", newDist)  + "KM and a new top speed at "
+                    + String.format("%.2f", newSpeed) +"km/h!", Toast.LENGTH_LONG).show();
+        } else if(newDist > maxDist) // if max distance record broken
+        {
+            Toast.makeText(MainActivity.this, "WOW! You've just set a new record for furthest distance travelled with " + String.format("%.2f", newDist) + "KM!", Toast.LENGTH_LONG).show();
+        } else if(newSpeed > topSpeed) // if top speed record broken
+        {
+            Toast.makeText(MainActivity.this, "WOW! You've just set a new record of your top speed with " + String.format("%.2f", newSpeed) + "km/h!", Toast.LENGTH_LONG).show();
+        }
     }
 
     @Override
